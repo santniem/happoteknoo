@@ -104,7 +104,7 @@ namespace NäätäETL.DataFlows
 
 
                     // Write from the source to the destination.
-                    await bulkCopy.WriteToServerAsync(array).ConfigureAwait(false);
+                    await bulkCopy.WriteToServerAsync(array);
 
                     batchCount++;
                     if (batchCount > batchTreshhold)
