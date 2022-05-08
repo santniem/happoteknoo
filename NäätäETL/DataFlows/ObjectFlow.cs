@@ -12,7 +12,7 @@ namespace NäätäETL.DataFlows
         public ObjectFlow(string ConnectionString, DataTable dataTable,bool Truncate) : base(DataflowOptions.Default)
         {
             createTableflow = new TableCreateFlow(ConnectionString,Truncate);
-            bulk = new BatchingBulkInsertFlow(dataTable, ConnectionString, 16384);
+            bulk = new BatchingBulkInsertFlow(dataTable, ConnectionString, 1024);
 
             createTableflow.LinkTo(bulk);
 

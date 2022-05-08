@@ -29,6 +29,7 @@ namespace NäätäETL
                 flowCache[item.TableName].InputBlock.Post(item);
             }
         }
+
         private void ConfigureFlows(string ConnectionString,bool Truncate)
         {
             Console.WriteLine("Scripts compiled");
