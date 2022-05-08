@@ -64,7 +64,8 @@ namespace TradeUpper.DataStuff
                         }
                         ret.AddRange(input);
                     }
-
+                    var f = ret.Average(x => x.SkinFloat);
+                    var testi = GetBestOutComes(OutputData,f ).ToList();
                     yield return ret;
 
                 }

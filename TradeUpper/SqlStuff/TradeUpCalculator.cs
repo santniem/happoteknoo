@@ -28,8 +28,8 @@ namespace TradeUpper.SqlStuff
         public void setOutputSkins(IEnumerable<Skin> OutPutSkins)
         {
             bestOutcomes.Clear();
-
-            var AvailableOutComes = OutPutSkins.Where(x => CalculateAverageFloat(InputSkins) < x.FloatTarget);
+            var inputFloat = CalculateAverageFloat(InputSkins);
+            var AvailableOutComes = OutPutSkins.Where(x => inputFloat < x.FloatTarget);
             var Outputs = AvailableOutComes.GroupBy(x => x.name);
             foreach (var skinGroup in Outputs)
             {

@@ -17,53 +17,61 @@ namespace TradeUpper
         {
             var stage = "Data Source=Localhost;Initial Catalog=Stage_steam;Trusted_Connection=True";
 
-            var dataflow = new AnalFlow(stage, false);
+            var dataflow = new AnalFlow(stage, true);
             var ConnectionString = "Data Source=Localhost;Initial Catalog=DW;Trusted_Connection=True";
 
             //SETUP TRADEUP
-            var tradeUpInputLevel = Rarity.classified;
-           // var Collections = new[] { "Spectrum Case"};
-
-            var Collections = DataUpGetter.getcollections(ConnectionString).Where(x => x != "Dust Collection");
-
-            var results = new List<AnalysisData>();
+            var tradeUpInputLevel = Rarity.restricted;
+            var Collections = new[] { "Huntsman Weapon Case","Danger Zone Case", "Gamma Case"};
+            var statTrak = true;
+            //var Collections = DataUpGetter.getcollections(ConnectionString,statTrak).Where(x => x != "Dust Collection");
 
 
-            Console.WriteLine("GENERATING COMBINATIONS");
-            var Combinations = InputGenerator.GenerateCollectionCombinations(2, Collections);
-            Console.WriteLine("asd COMBINATIONS");
+            var CollectionsToUse = 2;
+            var Combinations = InputGenerator.GenerateCollectionCombinations(CollectionsToUse, Collections);
+            await DoShit(ConnectionString, (int)Rarity.restricted, Collections, CollectionsToUse, statTrak, Combinations, dataflow);
 
-            var inputData = DataUpGetter.GetInputData(ConnectionString, tradeUpInputLevel, Collections).ToList();
-            var outputData = DataUpGetter.GetOutPutData(ConnectionString, tradeUpInputLevel + 1, Collections).ToList();
+            //for (int i = 0; i < ((int)Rarity.covert); i++)
+            //{
 
-            var i = 1;
-            var a = Combinations.Count();
+            //    await DoShit(ConnectionString,i,Collections,CollectionsToUse,statTrak,Combinations,dataflow);
+            //}
+            await dataflow.clean();
+
+        }
+
+        static async Task DoShit(string ConnectionString,
+            int rarity,
+            IEnumerable<string> Collections,
+            int CollectionsToUse,
+            bool statTrak,
+            IEnumerable<IEnumerable<string>> Combinations,
+            AnalFlow dataflow
+            )
+        {
+            var inputData = DataUpGetter.GetInputData(ConnectionString, (Rarity)rarity, Collections, statTrak).ToList();
+            var outputData = DataUpGetter.GetOutPutData(ConnectionString, (Rarity)rarity + 1, Collections, statTrak).ToList();
+
+            var iter = 1;
+            var combCount = MathExt.getKCombinationCount(CollectionsToUse, Collections.Count());
             Stopwatch sw = Stopwatch.StartNew();
             foreach (var Collection in Combinations)
             {
-                if(i % 10 == 0)
+                if (iter % 10 == 0)
                 {
-                    var msPerStep = sw.ElapsedMilliseconds / i;
-                    var remainingSteps = a - i;
+                    var msPerStep = sw.ElapsedMilliseconds / iter;
+                    var remainingSteps = combCount - iter;
                     var remainingEstimateSeconds = (msPerStep * remainingSteps) / 1000;
-                    Console.WriteLine($"{msPerStep}ms {sw.ElapsedMilliseconds / 1000}s   {remainingEstimateSeconds}s {i}/{a}");
+                    Console.WriteLine($"{(Rarity)rarity} {msPerStep}ms {sw.ElapsedMilliseconds / 1000}s   {remainingEstimateSeconds}s {iter}/{combCount}");
                 }
-                i++;
-
+                iter++;
 
                 var inputFiltered = inputData.Where(x => Collection.Contains(x.collectionName)).ToList();
                 var outputFiltered = outputData.Where(x => Collection.Contains(x.collectionName)).ToList();
                 var data = BruteForceCombination(inputFiltered, outputFiltered);
-                dataflow.postData(data);
-                results.AddRange(data);
-            }
-            await dataflow.clean();
+                await dataflow.postData(data);
+                //Console.WriteLine($"FILTERING TOOK {testi.ElapsedMilliseconds}ms");
 
-            var sorted = results.Where(x => x.Profit > 0).OrderByDescending(x => x.ProfitWithFree);
-            StringBuilder sb  = new StringBuilder();
-            foreach (var item in sorted)
-            {
-                sb.AppendLine(item.PrintResult());
             }
         }
 
@@ -97,7 +105,6 @@ namespace TradeUpper
                         if(anal.Profit > 0)
                         {
                             yield return anal;
-
                         }
                     }
                 }
@@ -112,7 +119,7 @@ namespace TradeUpper
 
         public List<Skin> InputSkins { get; set; } = new List<Skin>();
         private List<Skin> OutputSkins { get; set; }  = new List<Skin>();
-
+        public List<ResultSkin> output { get; set; } = new List<ResultSkin>();
         public AnalysisData(List<Skin> inputSkins, List<Skin> outputSkins, double expectedValue, double inputPrice, float inputAvgFloat)
         {
             InputSkins = inputSkins;
@@ -123,6 +130,18 @@ namespace TradeUpper
             inputFloat = inputAvgFloat;
             Profitability = expectedValue - inputPrice;
             ProfitWithFree = (expectedValue * 0.87) - inputPrice; // 13%
+
+            foreach (var item in outputSkins)
+            {
+                var inputCount = outputSkins.Where(x => x.collectionName == item.collectionName).Count();
+                var groupFactor = inputCount * 0.1;
+                var outPutCollectionSkinCount = outputSkins.Select(x => x.collectionName).Distinct().Count();
+
+                var luck = groupFactor / outPutCollectionSkinCount;
+                var a  =new ResultSkin(item.name, item.SkinFloat, item.Price, luck,item.ExteriorStr);
+                output.Add(a);
+            }
+
         }
 
         private string getCols()
@@ -130,23 +149,8 @@ namespace TradeUpper
             return string.Join(", ", InputSkins.Select(x => x.collectionName).Distinct());
         }
 
-        public string PrintResult()
-        {
-            var dist = InputSkins.GroupBy(x => x.collectionName);
-            var a = dist.First().Count();
-            var b = dist.Last().Count();
 
-            return $"[{getCols(),50}] " +
-                            $"| {a,2} / {b,2}" +
-                            $"| {InputSkins.First().statTrak}" +
-                            $"| {InputSkins.First().rarity}" +
-                            $"| {Math.Round(inputFloat, 4),5} " +
-                            $"| {Math.Round(InputPrice, 2),5} " +
-                            $"| {Math.Round(Profitability, 2),12}% " +
-                            $"| {Math.Round(ExpectedValue, 2),7}$ " +
-                            $"| {Math.Round(Profit, 2),7}$" +
-                            $"| {Math.Round(ProfitWithFree, 2),7}$";
-        }
+        public string usedCollections => String.Join(", ", OutputSkins.Select(x => x.collectionName).Distinct());
         public int NumOutputs => OutputSkins.Count();
 
         public bool statTrak => InputSkins.First().statTrak;
@@ -157,5 +161,23 @@ namespace TradeUpper
         public double ProfitWithFree { get; set; }
         public double InputPrice { get; set; }
         public double Profitability { get; set; }
+
+        public class ResultSkin
+        {
+            public ResultSkin(string name, float skinFloat, double price, double luck,string ext)
+            {
+                Extrerior = ext;
+                Name = name;
+                SkinFloat = skinFloat;
+                Price = price;
+                this.luck = luck;
+            }
+
+            public string Name { get; set; }
+            public string Extrerior { get; set; }
+            public float SkinFloat{get;set;}
+            public double Price { get; set; }
+            public double luck { get; set; }
+        }
     }
 }

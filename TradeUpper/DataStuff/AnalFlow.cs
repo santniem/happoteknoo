@@ -14,13 +14,17 @@ namespace TradeUpper.DataStuff
             var typeToUse = typeof(AnalysisData);
             dataflow = new ActualFlow(typeToUse, connectionString, Truncate);
         }
-        public void postData(IEnumerable<AnalysisData> data)
+        public Task postData(IEnumerable<AnalysisData> data)
         {
 
             foreach (var dat in data)
             {
-                dataflow.postData(dat);
+                return Task.Run(() =>
+                {
+                    dataflow.postData(dat);
+                });
             }
+            return Task.CompletedTask;
         }
 
         public async Task clean()
